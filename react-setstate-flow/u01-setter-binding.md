@@ -18,8 +18,8 @@
 - `fiber`/`queue`는 `mountState`가 실행되는 렌더 시점에 고정되고, 호출 시점에 새로 들어오는 값은 `action`뿐이다.
 
 ## Unknown
-- `currentlyRenderingFiber`는 mount 시점 fiber인데, 이후 렌더에서 `alternate`로 교체되면 bind된 값은 어떻게 처리되는지 (`dispatchSetStateInternal`이 `fiber.alternate`를 보는 이유)
-- `queue.lanes`, `queue.pending`이 실제로 언제 채워지는지
+- `currentlyRenderingFiber`는 mount 시점 fiber인데, 이후 렌더에서 `alternate`로 교체되면 bind된 값은 어떻게 처리되는지 (`dispatchSetStateInternal`이 `fiber.alternate`를 보는 이유) → u08(alternate.lanes 기록), u20(createWorkInProgress)에서 회수
+- `queue.lanes`, `queue.pending`이 실제로 언제 채워지는지 → u22에서 회수
 
 ## 확인
 Q: `setCount(1)` 호출할 때 `1`은 `dispatchSetState`의 몇 번째 파라미터로 들어가나?

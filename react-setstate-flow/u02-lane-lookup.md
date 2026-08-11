@@ -14,8 +14,8 @@
 - 3군데 중 흐름상 필수는 `dispatchSetStateInternal` 하나. 나머지 둘은 계측(update timer)·DevTools 표시용이라 빼도 업데이트는 동작한다.
 
 ## Unknown
-- `requestUpdateLane`이 lane을 어떤 기준으로 고르는지 (transition 여부, 이벤트 우선순위)
-- 결정된 lane이 실제로 언제 소비되는지
+- `requestUpdateLane`이 lane을 어떤 기준으로 고르는지 (transition 여부, 이벤트 우선순위) → u03에서 회수 완료
+- 결정된 lane이 실제로 언제 소비되는지 → u15(스케줄 분기), u18(렌더 방식), u26(bailout 검사)에서 회수
 
 ## 확인
 Q: `lane` 결정(3616)과 `Update` 객체 생성(3635) 중 먼저 실행되는 쪽은?

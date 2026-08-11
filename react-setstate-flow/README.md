@@ -19,8 +19,8 @@ updated: 2026-08-11
 
 - [x] [u01 useState가 반환한 setter가 bind하는 내부 함수와 고정 인자](u01-setter-binding.md)
 - [x] [u02 dispatchSetState가 lane을 얻는 위치](u02-lane-lookup.md)
-- [ ] u03 `requestUpdateLane`이 lane을 고르는 마지막 한 줄과 우선순위 상수값   ← NEXT
-- [ ] u04 Update 객체의 생성 위치와 필드 목록
+- [x] [u03 requestUpdateLane이 lane을 고르는 마지막 한 줄과 우선순위 상수값](u03-request-update-lane.md)
+- [ ] u04 Update 객체의 생성 위치와 필드 목록   ← NEXT
 - [ ] u05 eager 분기의 조건과 두 갈래 결말
 
 **Checkpoint 1** — setCount 호출부터 update 객체 완성까지 자료 없이 복원
@@ -111,6 +111,8 @@ updated: 2026-08-11
 - `getNextLanes` 내부
 - Strict Mode 컴포넌트 이중 호출 (`shouldDoubleRenderDEV`)
 - `updateWorkInProgressHook` — 훅 순서가 유지되는 방식
+- 이벤트 우선순위 매핑 — `getEventPriority`, `ReactDOMSharedInternals.p` 세팅 지점
+- lane은 왜 31비트인가 / `clz32`
 
 ## 계획 점검 이력
 
@@ -132,3 +134,15 @@ updated: 2026-08-11
 4. **수정** 구 u26·u28에 edge 2개씩 들어있던 것 분리 (현 u28/u29, u31/u32)
 5. **수정** u27에 `attemptEarlyBailoutIfNoScheduledUpdate`(BeginWork.js:3845, :4089) 명시, Checkpoint 4에 힌트 위치, Checkpoint 6에 `root.pendingLanes` 회수 지점 추가
 6. 곁가지 확인(계획에서 빼는 게 맞음): `renderRootConcurrent`/`workLoopConcurrent`(transition·retry 전용), `entangleTransitionUpdate`(no-op), root 스케줄 리스트 제거
+
+### 2026-08-12 3차 — 계획 변경 없음, 스킬을 고쳤다
+u03 수행 중 학습자가 지적: lane이 무엇인지 모르는 상태로 진행하고 있었다.
+처음엔 Lane 상수·비트 연산 Unit 2개를 추가해서 35 Unit으로 늘렸다가 되돌렸다 — 그게 증상 대응이었다.
+
+근본 원인 2개를 스킬에서 고쳤다:
+1. 스킬이 "무슨 코드를 읽을지"만 설계하게 하고 "읽으려면 뭘 이미 알아야 하는지"는 안 물었다. `lane은 정수 비트 하나다` 같은 사실은 호출 경로 위에 없어서 전체 읽기로도, 독립 감사로도 안 잡힌다
+   → 스킬 `## 4. Unit 진행`에 「개념은 먼저 준다」 추가. Unit을 내기 직전 필요한 개념을 한두 줄로 주고, 알면 넘어간다. 개념을 Unit으로 만들지 않는다
+2. Unknown을 쌓으라고만 하고 회수 장치가 없었다 (u01 Unknown의 `alternate`가 어느 Unit에도 없었다)
+   → Unknown에 `→ u12에서 회수` 또는 `→ Parking Lot` 표기 의무화
+
+Unit 목록은 33개 그대로. lane·비트 연산·microtask·순환 리스트 같은 개념은 해당 Unit 앞에서 한 줄로 준다.
