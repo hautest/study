@@ -10,106 +10,125 @@ updated: 2026-08-11
 # setState → Function Component 재실행
 
 종료점은 `renderWithHooks`의 `Component(props, secondArg)` — ReactFiberHooks.js:599.
+경로는 sync 렌더 기준. concurrent 워크루프는 transition·retry 전용이라 범위 밖 (Parking Lot).
 
 ## Units
 
-### 구간 1 — setState 호출부에서 Update 적재까지
-`ReactFiberHooks.js` / `ReactFiberConcurrentUpdates.js`
+### 구간 1 — setState 호출부
+`ReactFiberHooks.js` / `ReactFiberWorkLoop.js` / `ReactEventPriorities.js` / `react-dom-bindings/src/client/ReactDOMUpdatePriority.js`
 
 - [x] [u01 useState가 반환한 setter가 bind하는 내부 함수와 고정 인자](u01-setter-binding.md)
 - [x] [u02 dispatchSetState가 lane을 얻는 위치](u02-lane-lookup.md)
-- [ ] u03 Update 객체의 생성 위치와 필드 목록   ← NEXT
-- [ ] u04 update가 `enqueueConcurrentHookUpdate`로 넘어가는 호출부와 인자 4개
-- [ ] u05 `enqueueUpdate`가 update를 실제로 저장하는 자리 (`queue.pending`이 아니다)
+- [ ] u03 `requestUpdateLane`이 lane을 고르는 마지막 한 줄과 우선순위 상수값   ← NEXT
+- [ ] u04 Update 객체의 생성 위치와 필드 목록
+- [ ] u05 eager 분기의 조건과 두 갈래 결말
 
-**Checkpoint 1** — setCount → update 적재까지 자료 없이 복원
-왜: `queue.pending`에 즉시 넣지 않고 모듈 배열에 쌓아두는 이유는?
+**Checkpoint 1** — setCount 호출부터 update 객체 완성까지 자료 없이 복원
+왜: 아직 렌더도 안 했는데 setState 시점에 reducer를 미리 돌리는 이유는?
 
-### 구간 2 — lane 기록과 root 찾기
-`ReactFiberConcurrentUpdates.js` / `ReactFiberWorkLoop.js` / `ReactFiberLane.js`
+### 구간 2 — Update 적재와 root 찾기
+`ReactFiberConcurrentUpdates.js`
 
-- [ ] u06 `enqueueUpdate`가 lane을 즉시 기록하는 두 필드
-- [ ] u07 `enqueueConcurrentHookUpdate`의 반환값 root를 만드는 함수와 순회 방향
-- [ ] u08 `scheduleUpdateOnFiber`가 root에 lane을 기록하는 함수와 필드
-- [ ] u09 `scheduleUpdateOnFiber` → `ensureRootIsScheduled` 호출 위치
+- [ ] u06 update가 `enqueueConcurrentHookUpdate`로 넘어가는 호출부와 인자 4개
+- [ ] u07 `enqueueUpdate`가 update를 실제로 저장하는 자리 (`queue.pending`이 아니다)
+- [ ] u08 `enqueueUpdate`가 lane을 즉시 기록하는 자리 3곳
+- [ ] u09 `enqueueConcurrentHookUpdate`의 반환값 root를 만드는 함수와 순회 방향
 
-**Checkpoint 2** — lane이 기록되는 세 자리를 흐름 위에 배치
-왜: `concurrentQueues` / `fiber.lanes` / `root.pendingLanes`로 나눠 기록하는 이유는?
+**Checkpoint 2** — 적재 시점에 기록되는 것과 미뤄지는 것을 갈라서 복원
+왜: update 적재는 미루면서 `fiber.lanes`만 즉시 기록하는 이유는? (u05와 연결된다)
 
-### 구간 3 — microtask까지
-`ReactFiberRootScheduler.js`
+### 구간 3 — root 표시와 microtask 예약
+`ReactFiberWorkLoop.js` / `ReactFiberLane.js` / `ReactFiberRootScheduler.js`
 
-- [ ] u10 `ensureRootIsScheduled`가 root를 넣는 자료구조
-- [ ] u11 `ensureScheduleIsScheduled`가 microtask를 예약하는 함수
-- [ ] u12 microtask 안에서 실행되는 함수와 root 순회
-- [ ] u13 `scheduleTaskForRootDuringMicrotask`의 sync / concurrent 분기 조건
+- [ ] u10 `scheduleUpdateOnFiber`가 root에 lane을 기록하는 함수와 필드
+- [ ] u11 `scheduleUpdateOnFiber` → `ensureRootIsScheduled` 호출 위치
+- [ ] u12 `ensureRootIsScheduled`가 root를 넣는 자료구조
+- [ ] u13 `ensureScheduleIsScheduled`가 microtask를 예약하는 함수
 
-**Checkpoint 3** — setState부터 microtask까지 복원
+**Checkpoint 3** — setState부터 microtask 예약까지 복원
 왜: setState가 렌더를 즉시 시작하지 않고 microtask까지 미루는 이유는?
 
-### 구간 4 — 렌더 진입 두 경로
-`ReactFiberRootScheduler.js` / `ReactFiberWorkLoop.js`
+### 구간 4 — microtask와 렌더 진입
+`ReactFiberRootScheduler.js` / `ReactFiberWorkLoop.js` / `ReactFiberLane.js`
 
-- [ ] u14 concurrent 분기: `scheduleCallback`에 등록되는 콜백
-- [ ] u15 sync 분기: `flushSyncWorkAcrossRoots_impl` → `performSyncWorkOnRoot`
-- [ ] u16 `performWorkOnRoot`가 sync/concurrent 렌더를 고르는 조건
+- [ ] u14 microtask 안에서 실행되는 함수와 root 순회
+- [ ] u15 `scheduleTaskForRootDuringMicrotask`의 sync / concurrent 분기 조건
+- [ ] u16 concurrent 분기: `scheduleCallback`에 등록되는 콜백
+- [ ] u17 sync 분기: microtask 말미의 flush 호출 → `performSyncWorkOnRoot`
+- [ ] u18 `performWorkOnRoot`가 sync/concurrent 렌더를 고르는 조건 (`includesBlockingLane` 정의까지 열어볼 것)
 
 **Checkpoint 4** — 두 진입 경로가 같은 함수에서 만나는 지점 확인
-왜: 스케줄 우선순위(u13)와 렌더 방식(u16)을 두 번 나눠 판단하는 이유는?
+왜: 우선순위 판단(u15)과 렌더 방식 판단(u18)을 두 번 나눠 하는 이유는?
+힌트 위치: ReactFiberRootScheduler.js:560-570, :586-589
 
 ### 구간 5 — 렌더 스택 준비와 큐 flush
 `ReactFiberWorkLoop.js` / `ReactFiberConcurrentUpdates.js`
 
-- [ ] u17 `renderRootSync`가 `prepareFreshStack`을 호출하는 조건
-- [ ] u18 `prepareFreshStack`이 만드는 workInProgress fiber
-- [ ] u19 `prepareFreshStack`에서 `finishQueueingConcurrentUpdates`를 부르는 위치
-- [ ] u20 `finishQueueingConcurrentUpdates`가 `queue.pending`을 연결하는 방식
-- [ ] u21 `markUpdateLaneFromFiberToRoot`가 세팅하는 필드
+- [ ] u19 `renderRootSync`가 `prepareFreshStack`을 호출하는 조건
+- [ ] u20 `prepareFreshStack`이 만드는 workInProgress fiber
+- [ ] u21 `prepareFreshStack`에서 `finishQueueingConcurrentUpdates`를 부르는 위치
+- [ ] u22 `finishQueueingConcurrentUpdates`가 `queue.pending`을 연결하는 방식
+- [ ] u23 `markUpdateLaneFromFiberToRoot`가 세팅하는 필드
 
-**Checkpoint 5** — 적재(구간 1) → flush(구간 5) 사이가 얼마나 떨어져 있는지 복원
+**Checkpoint 5** — 적재(구간 2)와 flush(구간 5) 사이가 얼마나 떨어져 있는지 복원
 왜: return 경로를 `getRootForUpdatedFiber`와 `markUpdateLaneFromFiberToRoot`로 두 번 순회하는 이유는?
 
 ### 구간 6 — 워크 루프에서 fiber 하나까지
 `ReactFiberWorkLoop.js` / `ReactFiberBeginWork.js`
 
-- [ ] u22 `workLoopSync`의 루프 조건과 호출 대상
-- [ ] u23 `performUnitOfWork`가 `beginWork`에 넘기는 인자 3개
-- [ ] u24 `beginWork`의 bailout 검사 — `checkScheduledUpdateOrContext`
-- [ ] u25 `bailoutOnAlreadyFinishedWork`가 자식으로 내려갈지 판단하는 필드
+- [ ] u24 `workLoopSync`의 루프 조건과 호출 대상
+- [ ] u25 `performUnitOfWork`가 `beginWork`에 넘기는 인자 3개
+- [ ] u26 `beginWork`의 bailout 검사 — `checkScheduledUpdateOrContext`
+- [ ] u27 `attemptEarlyBailoutIfNoScheduledUpdate` → `bailoutOnAlreadyFinishedWork`가 자식으로 내려갈지 판단하는 필드
+- [ ] u28 `beginWork`가 `workInProgress.lanes`를 비우는 위치
 
-**Checkpoint 6** — 기록해둔 lane이 회수되는 두 지점 확인
+**Checkpoint 6** — 기록해둔 lane이 회수되는 지점들 확인
 왜: `fiber.lanes`와 `childLanes`를 따로 두는 이유는?
+확인 추가: `root.pendingLanes`는 어디서 회수되나 (ReactFiberRootScheduler.js:406-417)
 
 ### 구간 7 — 컴포넌트 함수 호출
 `ReactFiberBeginWork.js` / `ReactFiberHooks.js`
 
-- [ ] u26 `beginWork`의 FunctionComponent 분기와 `workInProgress.lanes` 초기화
-- [ ] u27 `updateFunctionComponent` → `renderWithHooks`
-- [ ] u28 `renderWithHooks`의 dispatcher 교체와 `Component(props, secondArg)` 호출
-- [ ] u29 (경계 밖 1스텝) `updateState`가 `queue.pending`을 소비하는 위치
+- [ ] u29 `beginWork`의 FunctionComponent 분기 → `updateFunctionComponent`
+- [ ] u30 `updateFunctionComponent` → `renderWithHooks` 인자 매핑
+- [ ] u31 `renderWithHooks`가 dispatcher를 교체하는 위치와 mount/update 판별 기준
+- [ ] u32 `renderWithHooks`의 `Component(props, secondArg)` 호출   ← 종료점
+- [ ] u33 (경계 밖 1스텝) `updateState`가 `queue.pending`과 `hasEagerState`를 소비하는 위치
 
 **Checkpoint 7 (최종)** — 전체 흐름 복원 + 변형 질문
-- 변형 1: 같은 fiber에 `setCount`를 연속 3번 부르면 `concurrentQueues`와 `queue.pending`은 각각 어떻게 되나?
-- 변형 2: `setCount`를 이벤트 핸들러 밖(`setTimeout` 콜백)에서 부르면 흐름의 어디가 갈라지나?
+- 변형 1: 같은 fiber에 `setCount`를 연속 3번 부르면 `concurrentQueues`, `queue.pending`, eager 계산 횟수는 각각 어떻게 되나?
+- 변형 2: `setCount`를 이벤트 핸들러 밖(`setTimeout` 콜백)에서 부르면 흐름의 어디가 갈라지고 어디서 다시 합쳐지나?
 
 ## Checkpoint
 (없음)
 
 ## Parking Lot
 - lane은 왜 bitmask인가
-- eager bailout은 왜 존재하는가
+- `renderRootConcurrent` / `workLoopConcurrentByScheduler` — yield 판단
 - `markStarvedLanesAsExpired` — lane starvation 처리
-- `renderRootConcurrent`의 yield 판단
-- `entangleTransitionUpdate`
+- `entangleTransitionUpdate` (일반 setState에선 no-op)
+- root가 스케줄 리스트에서 제거되는 지점 (`processRootScheduleInMicrotask`만 가능)
+- `getNextLanes` 내부
 - Strict Mode 컴포넌트 이중 호출 (`shouldDoubleRenderDEV`)
 - `updateWorkInProgressHook` — 훅 순서가 유지되는 방식
 
 ## 계획 점검 이력
-- 2026-08-11: 스킬 개정(설계 전 전체 읽기 의무화) 후 11 Unit → 29 Unit 재설계. 구멍 7개:
-  1. `finishQueueingConcurrentUpdates` 누락 — `queue.pending`이 setState 시점에 안 채워지는 사실 자체가 빠짐 (ConcurrentUpdates.js:50, WorkLoop.js:2193)
-  2. sync 진입 경로 누락 — `flushSyncWorkAcrossRoots_impl` → `performSyncWorkOnRoot` (RootScheduler.js:185, :608)
-  3. 순회 2회 구분 없음 — `getRootForUpdatedFiber`(:251) vs `markUpdateLaneFromFiberToRoot`(:188)
-  4. `beginWork` bailout 검사 누락 — `checkScheduledUpdateOrContext`(BeginWork.js:3826), `childLanes` 검사(:3732). 기록한 lane이 회수되는 지점
-  5. 구 u08이 microtask 예약~우선순위 분기 4단계를 한 줄로 압축
-  6. 구 u10에 탐색 edge 3개
-  7. 왜 질문·Checkpoint·변형 질문 0개 — 완료 기준 2·4번 통과 장치 없음
+
+### 2026-08-11 1차 — 11 Unit → 29 Unit
+스킬 개정(설계 전 전체 읽기 의무화) 후 재설계. 구멍 7개:
+1. `finishQueueingConcurrentUpdates` 누락 — `queue.pending`이 setState 시점에 안 채워지는 사실 자체가 빠짐 (ConcurrentUpdates.js:50, WorkLoop.js:2193)
+2. sync 진입 경로 누락 — `flushSyncWorkAcrossRoots_impl` → `performSyncWorkOnRoot` (RootScheduler.js:185, :608)
+3. 순회 2회 구분 없음 — `getRootForUpdatedFiber`(:251) vs `markUpdateLaneFromFiberToRoot`(:188)
+4. `beginWork` bailout 검사 누락 — `checkScheduledUpdateOrContext`(BeginWork.js:3826), `childLanes` 검사(:3732)
+5. 구 u08이 microtask 예약~우선순위 분기 4단계를 한 줄로 압축
+6. 구 u10에 탐색 edge 3개
+7. 왜 질문·Checkpoint·변형 질문 0개 — 완료 기준 2·4번 통과 장치 없음
+
+### 2026-08-11 2차 — 29 Unit → 33 Unit
+독립 감사 결과 반영. 판정은 "구조는 맞고 소수 추가 필요":
+1. **추가 u03** `requestUpdateLane` 내부 — WorkLoop.js:835 `eventPriorityToLane(resolveUpdatePriority())`, `DiscreteEventPriority = SyncLane` / `DefaultEventPriority = DefaultLane`(ReactEventPriorities.js:25,27). 이게 없으면 변형 2를 답할 재료가 없다
+2. **추가 u05** eager 분기 — Hooks.js:3649-3689. "지금은 무시"가 틀렸다: idle fiber의 첫 setState면 조건이 항상 참이라 reducer가 매번 실행되고(:3665), 값이 달라도 `hasEagerState`/`eagerState`를 update에 심는다(:3670-3671). Checkpoint 2 왜 질문의 정답(ConcurrentUpdates.js:104-106 주석)이 바로 이 분기이고, u33의 `hasEagerState` 소비(Hooks.js:1521)도 여기 근거
+3. **수정 u18** `includesBlockingLane` 정의(Lane.js:679-689)까지 열기 — DefaultLane도 blocking이라 setTimeout setState가 `renderRootSync`로 합류. 변형 2의 마지막 고리
+4. **수정** 구 u26·u28에 edge 2개씩 들어있던 것 분리 (현 u28/u29, u31/u32)
+5. **수정** u27에 `attemptEarlyBailoutIfNoScheduledUpdate`(BeginWork.js:3845, :4089) 명시, Checkpoint 4에 힌트 위치, Checkpoint 6에 `root.pendingLanes` 회수 지점 추가
+6. 곁가지 확인(계획에서 빼는 게 맞음): `renderRootConcurrent`/`workLoopConcurrent`(transition·retry 전용), `entangleTransitionUpdate`(no-op), root 스케줄 리스트 제거
