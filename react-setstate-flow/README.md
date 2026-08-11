@@ -13,8 +13,8 @@ updated: 2026-08-11
 
 ### 구간 1 — setter에서 Update 객체까지
 - [x] [u01 useState가 반환한 setter가 bind하는 내부 함수와 고정 인자](u01-setter-binding.md)
-- [ ] u02 dispatchSetState가 lane을 얻는 위치   ← NEXT
-- [ ] u03 Update 객체의 생성 위치와 필드 목록
+- [x] [u02 dispatchSetState가 lane을 얻는 위치](u02-lane-lookup.md)
+- [ ] u03 Update 객체의 생성 위치와 필드 목록   ← NEXT
 - [ ] u04 Update가 처음 전달되는 함수
 - [ ] u05 enqueueConcurrentHookUpdate 반환값 root의 출처
 
