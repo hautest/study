@@ -2,50 +2,7 @@
 
 ## 답 대기 문항 — 출제했는데 답이 안 옴. 다음 세션 원문 그대로 재제시
 
-Unit 2. 아래 세 문항을 문구 그대로 다시 낸다.
-
-**2-1.**
-```ts
-type Circle = { shape: 'circle'; r: number };
-type Rect   = { shape: 'rect'; w: number; h: number };
-type Shape  = Circle | Rect;
-
-type K1 = keyof Shape;                                        // K1 = ?
-type K2 = keyof Circle;                                       // K2 = ?
-type K3 = (Shape extends unknown ? keyof Shape : never);      // K3 = ?
-```
-
-K3은 함정 있음 — 조건부 타입 좌변을 잘 봐라.
-
-**2-2.** 아래 함수에서 에러 나는 줄이 있나? 있으면 몇 번째 줄, 왜?
-```ts
-function area(s: Shape): number {
-  if (s.shape === 'circle') {
-    return Math.PI * s.r ** 2;        // (1)
-  }
-  return s.w * s.h;                    // (2)
-}
-
-function area2(s: Shape): number {
-  return s.r ? Math.PI * s.r ** 2 : s.w * s.h;   // (3)
-}
-```
-
-**2-3.** `Shape`에 `Triangle = { shape: 'tri'; b: number; h: number }`를 추가했다. 아래 코드에서 컴파일 에러가 나나? 나면 왜 그게 유용한가?
-```ts
-function name(s: Shape): string {
-  switch (s.shape) {
-    case 'circle': return '원';
-    case 'rect':   return '사각형';
-    default: {
-      const _e: never = s;
-      return _e;
-    }
-  }
-}
-```
-
-채점 기준 — 2-1은 `K1 = 'shape'`(교집합), `K2 = 'shape' | 'r'`, `K3`은 좌변이 `Shape`(구체 타입, naked 아님)라 분배되지 않으므로 `'shape'`. 2-2는 (3)만 에러 — 판별 없이 `s.r`에 접근. 2-3은 `Triangle`이 `never`에 할당 불가로 에러이며, 유니온에 멤버를 추가하면 처리 누락된 switch가 전부 컴파일 에러로 드러나는 것이 안전망이다.
+- (없음) Unit 2 전 문항 채점 완료.
 
 ## 학습자 질문 — 미해소. 해소 후 반영 여부 기록
 
@@ -58,11 +15,22 @@ function name(s: Shape): string {
 | 2026-08-18 | `ToArray<string \| number>` = `(string \| number)[]` | 좌변이 naked면 멤버별로 쪼개 실행 → `string[] \| number[]`. 분배를 끄면(`[T] extends [unknown]`) 예측이 정답이 됨 | Unit 1 |
 | 2026-08-18 | `Wrap<never>` = `never[]` | 분배는 멤버마다 1회 실행. `never`는 멤버 0개라 본문이 평가되지 않고 결과 0개의 합집합 = `never`. 비유: `[].map(f)`는 콜백 미호출 | Unit 1 |
 | 2026-08-18 | `extends`를 if문(같은가 판정)으로 읽음 | `A extends B`는 `A ⊆ B` 질문. 대칭이 아니고, 객체는 속성 많은 쪽이 부분집합 | Unit 0 |
+| 2026-08-20 | `keyof (Circle \| Rect)` = 멤버 하나의 키 (`'shape' \| 'r'`) | 유니온의 `keyof`는 키 이름의 교집합 = `'shape'`. 판정 기준은 "값 하나 손에 있을 때 확실히 읽을 수 있는 키". 같은 논리를 `s.r` 접근 에러에는 정확히 적용했는데 `keyof`에는 적용하지 않았다 | Unit 2 |
+| 2026-08-20 | `Shape extends unknown ? keyof Shape : never`가 분배된다 | 분배는 좌변이 naked **타입 파라미터**일 때만. `Shape`는 타입 별칭(구체 타입)이라 분배 없음 → `'shape'`. 전체 키를 모으려면 파라미터를 껴야 함: `type AllKeys<T> = T extends unknown ? keyof T : never` | Unit 2 |
+| 2026-08-20 | `keyof (A \| C)`에서 값 타입이 충돌하는 키가 빠진다고 봄 (`A.id: number` vs `C.id: string` → `'name'`만) | `keyof`는 키 **이름**만 본다 → `'id' \| 'name'`. 값 타입 충돌은 인덱스 접근에서 합쳐진다: `(A \| C)['id']` = `string \| number` | Unit 2 |
+| 2026-08-20 | exhaustive check가 터지는 이유를 `return _e`(never를 string 자리에 반환)로 봄 | `never`는 bottom type이라 `string`에 할당 가능하고 `return _e`는 통과. 터지는 곳은 `const _e: never = s` 대입 — `default`에 남은 `s`가 `Triangle`이라 `never`에 못 들어간다 | Unit 2 |
+| 2026-08-20 | 조건부 타입 거짓 분기에 `S`(파라미터)를 둠 | 거짓 분기는 "안 맞으면 아무것도 안 낸다"를 쓰는 자리. `S`를 두면 `ByStatus<Res,'err'>` = `'err' \| Err`. 유니온의 빈 값은 `never`뿐 (`never \| 'a' \| never` = `'a'`) | Unit 2 |
 
 ## 복습 큐
 
 - `T & {}`가 분배를 차단하는 이유 (`T & unknown`은 통과) — Unit 5에서 `{}`가 `null`·`undefined`를 배제하는 타입임을 다룰 때 회수
 - 함수 파라미터 자리에서 안쪽 비교 답이 뒤집히는 현상 — Unit 6 변성에서 정식으로 다룸. Unit 1에서는 "자리에 따라 다르다"까지만 언급했고 공변/반공변 용어는 쓰지 않음
+- `keyof (Circle & Rect)` = `string | number | symbol` — 판별자 충돌로 교집합이 `never`로 줄고 `keyof never`가 그 값이다. Unit 2에서는 혼선을 피해 충돌 없는 예(`P & Q`)로만 다뤘다. `never`의 `keyof`를 설명할 자리에서 회수
+- 좁히기 수단 3종(판별자 비교 · `in` · `typeof`/`instanceof`)은 Unit 2에서 목록으로만 제시했다. `typeof`/`instanceof`는 예제로 확인하지 않았다
+
+## 작성 규칙 — 2026-08-20 회차에 3번 지적받음
+
+터미널 대화에는 되돌아볼 목차가 없다. 자세한 조항은 README 진행 규칙에 있다. 요지: 해설에 문항 재첨부, 문항 코드 블록 안에 타입 정의 매번 재기입, 과거 사실은 번호(`2-4의 X3`, `Unit 1 사실 목록`)가 아니라 코드로 되살리기.
 
 ## 세션 로그
 
@@ -74,4 +42,17 @@ function name(s: Shape): string {
 - Unit 2(유니온 `keyof`) 출제 후 답 대기. 이후 블로그 글 작업으로 전환.
 - naked 용어 검증: 실재 용어 확인(PR #21316 · TS 2.8 릴리스 노트), 현행 핸드북에는 없음. "분배는 `Exclude` 때문에 존재한다"는 타임라인으로 반증됨(`Exclude`가 6일 늦음).
 - 블로그 글: Notion `블로그` DB "Typescript" 페이지에 초안. 사용자가 본문 집필, 사실 검증·윤문 담당. 사실 오류 7건 교정(extends 방향 과잉일반화, 객체 속성 호환 조건 누락, 분배 규칙의 naked 조건 누락, naked의 좌변 위치 조건 누락, 함수 파라미터 자리 과잉일반화, 객체 "포함" 방향 충돌, 분배 규칙과 never 섹션 불일치).
-- 다음: Unit 2 문항 2-1~2-3 채점 → Unit 3(mapped type + key remapping).
+
+### 2026-08-20
+
+노트가 로컬 main에 없었다. `origin/worktree-ts-type-level-note` 브랜치(커밋 `ddf0eac`)에 있어서 `ts-type-level/`만 작업 트리로 복원했다. main의 백지화 커밋 `8300c75`는 건드리지 않았다.
+
+- Unit 2 채점: 2-1 ✗(K1·K2·K3 셋 다), 2-2 ✅, 2-3 △(결론·효용 ✅ / 에러 원인 ✗).
+- 오개념 4건 교정(위 표). 2-2를 맞힌 논리가 2-1의 답이라는 대조로 `keyof` 교집합을 확립.
+- 재시험 2-4~2-6: 2-4 X1·X3 ✅ / X2 ✗(값 타입 충돌이 키를 지운다고 봄), 2-5 ✅, 2-6 "모르겠어".
+- **2-6·2-7에서 두 번 연속 "모르겠어" → 스캐폴딩 Level 5로 올림.** 진단: 읽기는 되는데 작성이 안 되는 상태. 빠진 건 필터링·분배가 아니라 **타입 파라미터를 구조 안에 넣는 동작** — 그때까지 본 조건은 좌·우변이 통째 타입 하나뿐이었다.
+  - 대응 ①: 조건부 타입 작성 조리법 3문항 신설(① 멤버마다 따로 실행? → 좌변 naked / ② 실제로 걸러야? → 진짜 조건 vs `extends unknown` / ③ 남길 것·버릴 것 → 참 분기·`never`). 이미 아는 `Exclude`로 조리법을 검증하고 `OnlyNumber`로 완전 모델링.
+  - 대응 ②: 빈칸을 A(하드코딩 `{ shape: 'rect' }`) → B(`'rect'` 자리에 `K`) → C(추적) 3단계로 쪼갬. B단계가 "한 글자 자리 교체"로 보이게 배치.
+- 2-8 전이 확인: 2-8b(`Res['status']`) ✅. 2-8a는 골격·조건·참 분기 전부 ✅, 거짓 분기에 `S`를 둬서 `'err' | Err`. 조리법 ③의 후반부(버릴 것 = `never`)만 남은 결손.
+- **작성 규칙 3번 지적받음.** ① 해설에 문항 재첨부 ② 문항에 타입 정의 인라인 ③ 과거 사실을 번호로 참조 금지. ③은 내가 ①②를 규칙으로 넣은 직후 힌트에서 `2-4의 X3`으로 재발시킨 것 — 사용자 표현 "지금 터미널에서 얘기하고 있는데 저걸 내가 어떻게 아냐고". README 진행 규칙 + 메모리 `feedback_study_questions`에 반영.
+- 다음: Unit 3(mapped type + key remapping). 시작 전 `ByStatus`류 거짓 분기 `never`를 문항 하나로 재확인할 것.
