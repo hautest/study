@@ -23,6 +23,7 @@
 | 2026-08-23 | `as` 절 조건에서 키 이름(`K`)과 값 타입(`T[K]`)을 혼동 — `K extends Function` | `K`는 키 이름(문자열 리터럴)이라 `Function`의 부분집합이 될 수 없어 전부 `never` → `{}`. 값을 보려면 `T[K] extends Function`. 같은 회차 N2에서는 `Cfg[K] extends boolean`으로 맞게 썼으므로 고정 오개념이 아니라 자리 미끄러짐 | Unit 3 |
 | 2026-08-23 | 객체 타입 리터럴의 키 자리에 파라미터를 쓰면 치환된다고 봄 — `T extends { K: T[K] } ? ...` | 키 자리는 계산되지 않는다. `Weird<K> = { K: number }`는 무엇을 넘겨도 `{ K: number }`. 값 자리에서는 파라미터가 동작하는 비대칭이 mapped type이 존재하는 이유. 결과도 유니온이 아니라 객체여야 하므로 도구 자체가 다름 | Unit 3 |
 | 2026-08-23 | 속성별 필터를 mapped type **바깥** 조건부 타입에 둠 — `T extends Function ? { ... } : never` | 바깥 필터는 `T` 전체를 1회 판정해 객체를 통째로 남기거나 버린다. `Api extends Function`이 거짓이라 `never`. 속성 단위 요구는 `as` 슬롯 안에서 판정해야 한다 | Unit 3 |
+| 2026-08-24 | `User['id' \| 'name']`이 유니온이 되는 것을 분배법칙 때문으로 봄 | 동작 서술("키 하나당 값 하나가 나와 합쳐진다")은 정확하고 원인 귀속만 틀렸다. 분배는 조건부 타입에 붙은 이름이고 naked 타입 파라미터를 요구한다. 같은 구체 유니온을 두 문법에 넣으면 갈린다 — `type Keys = 'id' \| 'name'`에서 `Keys extends 'id' ? 'Y' : 'N'` = `'N'`(1회 평가)인데 `User[Keys]` = `string \| number`(멤버별). 인덱스 접근은 파라미터 없이도 키·객체 양쪽 유니온을 훑고 `[T]` 감싸기 같은 차단 수단도 없다. `never`에서 둘이 같아 보이는 것(`CondNever<never>` = `never`, `User[never]` = `never`)이 혼동의 원인 | 블로그 글 집필 중 |
 
 ## 복습 큐
 
