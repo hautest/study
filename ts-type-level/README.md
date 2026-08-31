@@ -34,8 +34,8 @@ study 스킬 형식(출구 시험 선작성 → 목차 → 챕터 집필)으로 
 | 0 | `extends`는 부분집합 질문 | ✅ | 타입 = 값의 집합, 방향 비대칭, 객체는 속성 많은 쪽이 부분집합, `extends` 3군데가 같은 질문 | 전제 |
 | 1 | 분배 법칙 | ✅ | naked type parameter, 좌변만 분배, 실행 횟수 = 멤버 수, `never`는 0회, `Exclude` 해부 | Q1 |
 | 2 | 유니온의 `keyof` · 판별 유니온 | ✅ | `keyof (A \| B)` = 키의 교집합, 값 타입은 인덱스 접근에서 합집합, narrowing 3수단, exhaustive check, 조건부 타입 작성 조리법, 분배로 전체 키 모으기, `Extract`류 자작 | Q5 |
-| 3 | mapped type + key remapping | 📖 ← NEXT | `as` 절, `Capitalize`, 수식어 추가·제거 | — |
-| 4 | `infer` + 템플릿 리터럴 + 재귀 | ⬜ | 문자열에서 타입 추출, 타입 안전 라우터 params | Q4 |
+| 3 | mapped type + key remapping | ✅ | 슬롯 5개, `in`이 키 계산의 표시, `as` 절(이름 조립·`never`로 키 버림), `Capitalize`·템플릿 리터럴, 수식어 추가·제거·보존, 필터 층(바깥 조건부 vs `as` 안), `Pick`·`Omit` 자작 | — |
+| 4 | `infer` + 템플릿 리터럴 + 재귀 | 📖 ← NEXT | 문자열에서 타입 추출, 타입 안전 라우터 params | Q4 |
 | 5 | `satisfies` / 타입 주석 / `as const` | ⬜ | 리터럴 보존과 제약 검사의 분리 | Q2 |
 | 6 | 변성(variance) | ⬜ | method bivariance vs 프로퍼티 반공변, 함수 파라미터 반공변·반환 공변 | Q3 |
 | 7 | 응용 종합 | ⬜ | 타입 안전 라우터 또는 API 클라이언트 | — |
@@ -207,6 +207,172 @@ BadBy<Res, 'ok' | 'wait'>    // 'ok' | Ok | 'wait' | Wait
 GoodBy<Res, 'err'>           // Err
 Res['status']                // 'ok' | 'err' | 'wait'
 ```
+
+## 확립된 사실 — Unit 3
+
+TS 5.9.3 `--strict` 실측. `Eq`/`Assert` 통과분.
+
+### 슬롯 5개
+
+```ts
+type X<T> = { [K in keyof T as 새키]?: 값 };
+//             │ │     │       │     │   └─ ⑤ 값:       T[K] (객체 앞, 키 뒤)
+//             │ │     │       │     └───── ④ 수식어:   ? / readonly / -? / -readonly
+//             │ │     │       └─────────── ③ as 절:    나갈 키 이름. never 면 그 키를 버린다
+//             │ │     └─────────────────── ② 키 유니온: keyof T 또는 'a' | 'b'
+//             │ └───────────────────────── ① in:       필수. 이게 "키를 계산한다"는 표시
+//             └─────────────────────────── ⓪ 순회 변수
+```
+
+`in`이 없으면 대괄호가 키 계산으로 읽히지 않는다. **객체 타입 리터럴의 키 자리는 계산되지 않는다** — 값 자리에서는 파라미터가 동작하는데 키 자리에서는 안 되는 비대칭이 mapped type이 존재하는 이유다.
+
+```ts
+type Weird<K> = { K: number };
+Weird<'id'>     // { K: number }   글자 그대로 "K" 라는 속성
+Weird<'name'>   // { K: number }   무엇을 넘겨도 같다
+```
+
+| 하고 싶은 것 | 문법 |
+|---|---|
+| 유니온 만들기 | 조건부 타입 `T extends U ? A : B` |
+| 키를 계산해 객체 만들기 | mapped type `{ [P in 키유니온]: 값 }` |
+
+### 기본과 수식어
+
+```ts
+type User   = { id: number; name: string };
+type Locked = { readonly id: number; name?: string };
+
+{ [K in 'a' | 'b']: number }                  // { a: number; b: number }      키 유니온 직접
+type Identity<T>  = { [K in keyof T]: T[K] };  // Identity<User> = { id: number; name: string }
+type Stringify<T> = { [K in keyof T]: string };// Stringify<User> = { id: string; name: string }
+
+type MyPartial<T>  = { [K in keyof T]?: T[K] };          // = Partial<T>
+type MyReadonly<T> = { readonly [K in keyof T]: T[K] };  // = Readonly<T>
+type Unlock<T>     = { -readonly [K in keyof T]-?: T[K] };
+Unlock<Locked>                                 // { id: number; name: string }
+
+// 수식어를 안 건드리면 보존된다 (keyof T 로 돌 때)
+type Keep<T> = { [K in keyof T]: T[K] };
+Keep<Locked>                                   // { readonly id: number; name?: string }
+
+// homomorphic mapped type 은 유니온에 분배된다
+Identity<{ a: number } | { b: string }>        // { a: number } | { b: string }
+keyof ({ a: number } | { b: string })          // never
+```
+
+### `as` 절
+
+```ts
+type User = { id: number; name: string; email: string };
+
+// 이름 조립 — 템플릿 리터럴 + Capitalize
+type Prefixed<T> = { [K in keyof T as `data-${K & string}`]: T[K] };
+Prefixed<{ id: number }>                       // { 'data-id': number }
+type Getters<T> = { [K in keyof T as `get${Capitalize<K & string>}`]: () => T[K] };
+Getters<{ id: number; name: string }>          // { getId: () => number; getName: () => string }
+
+// & string 없으면 터진다
+{ [K in keyof T as `get${Capitalize<K>}`]: T[K] }
+// error TS2344: Type 'K' does not satisfy the constraint 'string'.
+//   Type 'string | number | symbol' is not assignable to type 'string'.
+
+// as 결과가 never 면 그 키를 버린다
+type DropId<T> = { [K in keyof T as K extends 'id' ? never : K]: T[K] };
+DropId<User>                                   // { name: string; email: string }  = Omit<User,'id'>
+type OnlyStringValues<T> = { [K in keyof T as T[K] extends string ? K : never]: T[K] };
+OnlyStringValues<User>                         // { name: string; email: string }
+
+// as 를 써도 수식어는 보존된다
+DropId<Locked>                                 // { name?: string }
+
+// infer 로 조각을 잡아 이름을 줄인다. 패턴 불일치가 곧 필터다
+type StripOn<T> = { [K in keyof T as K extends `on${infer P}` ? P : never]: T[K] };
+StripOn<{ onClick: () => void; onFocus: () => void; id: number }>
+// { Click: () => void; Focus: () => void }   — 'id' 는 패턴 불일치로 never
+type FirstOf<S extends string> = S extends `${infer F}${string}` ? F : never;
+FirstOf<'host'>                                // 'h'   첫 placeholder 가 최소로 먹는다
+FirstOf<'debug'>                               // 'd'
+```
+
+`as` 절에서 나가는 것은 항상 키 이름(또는 `never`)이다. 값 타입을 검사해도 참 분기에는 `K`(또는 조립한 이름)를 쓴다.
+
+| 무엇을 거르나 | 조건 좌변 |
+|---|---|
+| 키 이름 | `K` — `K extends 'id' ? never : K` |
+| 값 타입 | `T[K]` — `T[K] extends Function ? K : never` |
+
+### 필터 층 — 바깥 조건부 vs `as` 안
+
+| 필터 위치 | 판정 대상 | 판정 횟수 | 결과 |
+|---|---|---|---|
+| 바깥 (조건부 타입) | `T` 전체 | 1회 | 객체를 통째로 남기거나 버린다 |
+| 안 (`as` 절) | `T[K]` | 키 개수만큼 | 속성을 하나하나 남기거나 버린다 |
+
+```ts
+type Api = { fetchUser: () => string; retries: number; fetchList: () => string[] };
+
+type OuterFilter<T> = T extends Function ? T : never;
+OuterFilter<() => void>   // () => void
+OuterFilter<Api>          // never        객체는 함수가 아니다
+
+type InnerFilter<T> = { [K in keyof T as T[K] extends Function ? K : never]: T[K] };
+InnerFilter<Api>          // { fetchUser: () => string; fetchList: () => string[] }
+```
+
+요구에 "속성"이라는 단위가 있으면 필터는 `as` 안이다. 인자 전체를 걸러야 하면 바깥이다.
+
+### 순서 — `as` 가 먼저, 수식어는 살아남은 것에만
+
+```ts
+type Locked2 = { readonly id: number; name?: string; tag?: string };
+
+// optional 속성의 인덱스 접근에는 undefined 가 붙는다
+Locked2['name']   // string | undefined
+Locked2['id']     // number              readonly 는 영향 없음
+
+{ [K in keyof Locked2 as Locked2[K] extends string | undefined ? K : never]-?: Locked2[K] }
+// { name: string; tag: string }
+
+// 순서를 가르는 변형 — 조건에서 undefined 를 빼면 전부 버려진다
+{ [K in keyof Locked2 as Locked2[K] extends string ? K : never]-?: Locked2[K] }
+// {}    as 절이 본 것은 원본 타입(string | undefined)이다. -? 가 먼저면 살아남았을 것
+
+{ readonly [K in keyof Locked2 as Locked2[K] extends string | undefined ? K : never]: Locked2[K] }
+// { readonly name?: string; readonly tag?: string }   id 는 버려져 원래 readonly 의 흔적이 없다
+```
+
+### 배열 판정
+
+```ts
+string extends { length: number }              // true    length 로는 문자열이 걸린다
+string extends unknown[]                       // false
+readonly string[] extends unknown[]            // false   읽기 전용은 변경 가능의 부분집합이 아니다
+readonly string[] extends readonly unknown[]   // true
+
+type OnlyArrays<T>   = { [K in keyof T as T[K] extends unknown[]          ? K : never]: T[K] };
+type OnlyArraysRO<T> = { [K in keyof T as T[K] extends readonly unknown[] ? K : never]: T[K] };
+OnlyArrays<{ a: readonly string[]; b: number }>     // {}                       놓친다
+OnlyArraysRO<{ a: readonly string[]; b: number }>   // { a: readonly string[] } 기본으로 쓸 것
+```
+
+### `Pick` 자작 — 순회 대상을 좁히는 것과 순회하며 거르는 것은 다르다
+
+```ts
+type User = { id: number; name: string; email: string };
+
+type MyPick<T, K extends keyof T> = { [P in K]: T[P] };
+MyPick<User, 'id' | 'email'>                   // { id: number; email: string }  = Pick<...>
+
+// 값 자리에 K 를 쓰면 매회 같은 유니온이 들어간다
+type Wrong<T, K extends keyof T> = { [P in K]: T[K] };
+Wrong<User, 'id' | 'email'>                    // { id: string | number; email: string | number }
+
+MyPick<{ readonly id: number; name?: string; tag: string }, 'id' | 'name'>
+// { readonly id: number; name?: string }      수식어 보존
+```
+
+목표 키를 미리 알면 ② 키 유니온을 좁히는 게 짧다. `as`는 이름을 바꾸거나 버릴 때 쓴다.
 
 ## 용어 출처
 
